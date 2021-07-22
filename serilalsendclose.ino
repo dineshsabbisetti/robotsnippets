@@ -1,5 +1,5 @@
 // *******************************************************************
-//  Arduino Nano 5V example code snippet for sending
+//  Arduino Nano 5V example snippet for sending via serial
 //********************************************************************
 
 // ########################## DEFINES ##########################
@@ -7,8 +7,6 @@
 #define SERIAL_BAUD         115200      // [-] Baud rate for built-in Serial (used for the Serial Monitor)
 #define START_FRAME         0xABCD       // [-] Start frme definition for reliable serial communication
 #define TIME_SEND           100         // [ms] Sending time interval
-#define SPEED_MAX_TEST      300         // [-] Maximum speed for testing
-// #define DEBUG_RX                        // [-] Debug received data. Prints all bytes to serial (comment-out to disable)
 
 #include <SoftwareSerial.h>
 SoftwareSerial HoverSerial(2,3);        // RX, TX
@@ -37,7 +35,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
-// ########################## SEND ##########################
+// ########################## SEND ############################
 
 void Send(int16_t ucmd1, int16_t ucmd2, int16_t uspeedR_meas, int16_t uspeedL_meas, int16_t ubatVoltage, int16_t uboardTemp, uint16_t ucmdLed)
 {
@@ -56,15 +54,11 @@ void Send(int16_t ucmd1, int16_t ucmd2, int16_t uspeedR_meas, int16_t uspeedL_me
 }
 
 // ########################## LOOP ##########################
-
-
 void loop(void)
 { 
-
   Send(0, 0, 100, 200, 300,400,500); //send 7 different  values from here..
-
   delay(10);
-
 }
 
-// ########################## END ########################
+// ########################## END ###########################
+
