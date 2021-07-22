@@ -1,5 +1,5 @@
 // *******************************************************************
-//  Arduino Nano 5V example code
+//  Arduino Nano 5V example code snippet for sending
 //********************************************************************
 
 // ########################## DEFINES ##########################
@@ -12,13 +12,6 @@
 
 #include <SoftwareSerial.h>
 SoftwareSerial HoverSerial(2,3);        // RX, TX
-
-// Global variables
-//uint8_t idx = 0;                        // Index for new data pointer
-//uint16_t bufStartFrame;                 // Buffer Start Frame
-//byte *p;                                // Pointer declaration for the new received data
-//byte incomingByte;
-//byte incomingBytePrev;
 
 typedef struct{
    uint16_t start;
@@ -45,19 +38,9 @@ void setup()
 }
 
 // ########################## SEND ##########################
-//void Send(int16_t uSteer, int16_t uSpeed)
+
 void Send(int16_t ucmd1, int16_t ucmd2, int16_t uspeedR_meas, int16_t uspeedL_meas, int16_t ubatVoltage, int16_t uboardTemp, uint16_t ucmdLed)
 {
-  // Create command
-  //Command.start    = (uint16_t)START_FRAME;
-  //Command.steer    = (int16_t)uSteer;
-  //Command.speed    = (int16_t)uSpeed;
-  //Command.checksum = (uint16_t)(Command.start ^ Command.steer ^ Command.speed);
-
-  // Write to Serial
- // HoverSerial.write((uint8_t *) &Command, sizeof(Command)); 
-
-
     Feedback.start          = (uint16_t)START_FRAME;
     Feedback.cmd1           = (int16_t)ucmd1;
     Feedback.cmd2           = (int16_t)ucmd2;
@@ -68,11 +51,9 @@ void Send(int16_t ucmd1, int16_t ucmd2, int16_t uspeedR_meas, int16_t uspeedL_me
     Feedback.cmdLed     = (uint16_t)ucmdLed;
     Feedback.checksum   = (uint16_t)(Feedback.start ^ Feedback.cmd1 ^ Feedback.cmd2 ^ Feedback.speedR_meas ^ Feedback.speedL_meas 
                                            ^ Feedback.batVoltage ^ Feedback.boardTemp ^ Feedback.cmdLed);
-    //HAL_UART_Transmit_DMA(&huart3, (uint8_t *)&Feedback, sizeof(Feedback));
+  
      HoverSerial.write((uint8_t *)&Feedback, sizeof(Feedback));
 }
-
-// ########################## RECEIVE ##########################
 
 // ########################## LOOP ##########################
 
