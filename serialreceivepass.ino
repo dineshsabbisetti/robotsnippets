@@ -98,11 +98,11 @@ void Receive1()
 
 // ########################## LOOP ##########################
 
-unsigned long iTimeSend2 = 0;
+unsigned long iTimeSend1 = 0;
 
 void loop(void)
 { 
-  unsigned long timeNow2 = millis();
+  unsigned long timeNow1 = millis();
 
   // Check for new received data
   Receive1();
