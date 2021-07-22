@@ -80,13 +80,15 @@ void Receive3()
             memcpy(&cFeedback, &cNewFeedback, sizeof(cSerialFeedback));
 
             // Print data to built-in Serial
-//            Serial.print("1: ");   Serial.print(cFeedback.ccmd1);
-//            Serial.print(" 2: ");  Serial.print(cFeedback.ccmd2);
-//            Serial.print(" 3: ");  Serial.print(cFeedback.cspeedR_meas);
-//            Serial.print(" 4: ");  Serial.print(cFeedback.cspeedL_meas);
-//            Serial.print(" 5: ");  Serial.print(cFeedback.cbatVoltage);
-//            Serial.print(" 6: ");  Serial.print(cFeedback.cboardTemp);
-//            Serial.print(" 7: ");  Serial.println(cFeedback.ccmdLed);
+           // Serial.print("1: ");   Serial.print(cFeedback.ccmd1);
+           // Serial.print(" 2: ");  Serial.print(cFeedback.ccmd2);
+           // Serial.print(" 3: ");  Serial.print(cFeedback.cspeedR_meas);
+           // Serial.print(" 4: ");  Serial.print(cFeedback.cspeedL_meas);
+           // Serial.print(" 5: ");  Serial.print(cFeedback.cbatVoltage);
+           // Serial.print(" 6: ");  Serial.print(cFeedback.cboardTemp);
+           // Serial.print(" 7: ");  Serial.println(cFeedback.ccmdLed);
+              Serial.println(" heading: "); 
+             Serial.println(receivecompass);
             receivecompass = cFeedback.ccmdLed;
         } else {
           Serial.println("Non-valid data skipped");
@@ -108,8 +110,6 @@ void loop(void)
 
   // Check for new received data
   Receive3();
-  Serial.print("heading : ");  
-  Serial.println(receivecompass);
   
 }
 
