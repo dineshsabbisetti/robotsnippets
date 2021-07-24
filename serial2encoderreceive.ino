@@ -13,8 +13,8 @@ uint16_t bbufStartFrame;                 // Buffer Start Frame
 byte *bp;                                // Pointer declaration for the new received data
 byte bincomingByte;
 byte bincomingBytePrev;
-int pulseCountl;       // Integer variable to store the pulse count
-int pulseCountr;       // Integer variable to store the pulse count
+ signed long  pulseCountl;       // Integer variable to store the pulse count
+ signed long  pulseCountr;       // Integer variable to store the pulse count
 
 
 typedef struct{
