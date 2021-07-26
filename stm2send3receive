@@ -1,0 +1,313 @@
+  
+// *******************************************************************
+//  Arduino Nano 5V example snippet for sending via serial
+//********************************************************************
+
+// ########################## DEFINES ##########################
+#define HOVER_SERIAL_BAUD   115200      // [-] Baud rate for HoverSerial (used to communicate with the hoverboard)
+#define SERIAL_BAUD         115200      // [-] Baud rate for built-in Serial (used for the Serial Monitor)
+#define START_FRAME         0xABCD       // [-] Start frme definition for reliable serial communication
+#define TIME_SEND            100         // [ms] Sending time interval
+#define TIME_SEND1           100         // [ms] Sending time interval
+#define TIME_SEND2           200         // [ms] Sending time interval
+#define TIME_SEND3           300         // [ms] Sending time interval
+//#include <SoftwareSerial.h>
+//SoftwareSerial HoverSerial(2,3);        // RX, TX
+
+/***************************** Variables *********************************/
+
+#define CWL            -1      // Assign a value to represent clock wise rotation
+#define CCWL            1      // Assign a value to represent counter-clock wise rotation
+
+#define CWR             1      // Assign a value to represent clock wise rotation
+#define CCWR           -1      // Assign a value to represent counter-clock wise rotation
+
+bool HSU_Vall = digitalRead(PB12);    // Set the Ul sensor value as boolean and read initial state
+bool HSV_Vall = digitalRead(PB13);    // Set the Vl sensor value as boolean and read initial state 
+bool HSW_Vall = digitalRead(PB14);    // Set the Wl sensor value as boolean and read initial state 
+
+bool HSU_Valr = digitalRead(PB15);    // Set the Ur sensor value as boolean and read initial state
+bool HSV_Valr = digitalRead(PA8);    // Set the Vr sensor value as boolean and read initial state 
+bool HSW_Valr = digitalRead(PA11);    // Set the Wr sensor value as boolean and read initial state 
+
+int directl = 1;       // Integer variable to store BLDC rotation direction
+int pulseCountl;       // Integer variable to store the pulse count
+
+int directr = 1;       // Integer variable to store BLDC rotation direction
+int pulseCountr;       // Integer variable to store the pulse count
+
+
+signed long right = 0;
+signed long left = 0;
+
+signed long  pcompass;  
+/***************************** Variables *********************************/
+
+
+// Global variables 3
+//new
+unsigned long receivecompass = 0;
+//new
+uint8_t cidx = 0;                        // Index for new data pointer
+uint16_t cbufStartFrame;                 // Buffer Start Frame
+byte *cp;                                // Pointer declaration for the new received data
+byte cincomingByte;
+byte cincomingBytePrev;
+
+
+/***************************** Variables *********************************/
+
+
+//struct 2
+typedef struct {
+  signed long start;
+  signed long  bcmd1;
+  signed long  bcmd2;
+  signed long  bspeedR_meas;
+  signed long  bspeedL_meas;
+  signed long  bbatVoltage;
+  signed long  bboardTemp;
+  signed long bcmdLed;
+  signed long bchecksum;
+} bSerialFeedback;
+bSerialFeedback bFeedback;
+//bSerialFeedback bNewFeedback;
+
+//struct 3
+typedef struct {
+  signed long start;
+  signed long  ccmd1;
+  signed long  ccmd2;
+  signed long  cspeedR_meas;
+  signed long  cspeedL_meas;
+  signed long  cbatVoltage;
+  signed long  cboardTemp;
+  signed long ccmdLed;
+  signed long cchecksum;
+} cSerialFeedback;
+cSerialFeedback cFeedback;
+cSerialFeedback cNewFeedback;
+
+// ########################## SETUP ##########################
+void setup() 
+{
+  
+//LEFT
+  pinMode(PB12, INPUT);      
+  pinMode(PB13, INPUT);      
+  pinMode(PB14, INPUT);
+//RIGHT
+  pinMode(PB15, INPUT);      
+  pinMode(PA8, INPUT);      
+  pinMode(PA11, INPUT);
+
+// Set digital pins 2, 3 and 4 as interrupts that trigger on rising and falling edge changes. Call a function (i.e. HallSensorU) on change
+//LEFT
+  attachInterrupt(digitalPinToInterrupt(PB12), HallSensorUl, CHANGE);      
+  attachInterrupt(digitalPinToInterrupt(PB13), HallSensorVl, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PB14), HallSensorWl, CHANGE);
+//RIGHT
+  attachInterrupt(digitalPinToInterrupt(PB15), HallSensorUr, CHANGE);      
+  attachInterrupt(digitalPinToInterrupt(PA8), HallSensorVr, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(PA11), HallSensorWr, CHANGE);
+
+// Initialize the print monitor and set baud rate to 9600 
+
+  Serial.begin(SERIAL_BAUD);
+  Serial.println("Hoverboard Serial v1.0");
+
+  Serial2.begin(HOVER_SERIAL_BAUD);  
+  Serial3.begin(HOVER_SERIAL_BAUD);  
+}
+
+// ########################## SEND ############################
+
+void Send(signed long  ucmd1, signed long  ucmd2, signed long uspeedR_meas, signed long uspeedL_meas, signed long ubatVoltage, signed long uboardTemp, signed long ucmdLed)
+{
+     bFeedback.start          = (signed long)START_FRAME;
+    bFeedback.bcmd1           = (signed long)ucmd1;
+    bFeedback.bcmd2           = (signed long)ucmd2;
+    bFeedback.bspeedR_meas    = (signed long)uspeedR_meas;
+    bFeedback.bspeedL_meas    = (signed long)uspeedL_meas;
+    bFeedback.bbatVoltage     = (signed long)ubatVoltage;
+    bFeedback.bboardTemp      = (signed long)uboardTemp;
+    bFeedback.bcmdLed     = (signed long)ucmdLed;
+    bFeedback.bchecksum   = (signed long )(bFeedback.start ^ bFeedback.bcmd1 ^ bFeedback.bcmd2 ^ bFeedback.bspeedR_meas ^ bFeedback.bspeedL_meas 
+                                           ^ bFeedback.bbatVoltage ^ bFeedback.bboardTemp ^ bFeedback.bcmdLed);
+  
+     Serial2.write((uint8_t *)&bFeedback, sizeof(bFeedback));
+
+}
+
+
+// ########################## RECEIVE3 ##########################
+void Receive3()
+{
+  // Check for new data availability in the Serial buffer
+  if (Serial3.available()) {
+    cincomingByte    = Serial3.read();                                   // Read the incoming byte
+    cbufStartFrame = ((uint16_t)(cincomingByte) << 8) | cincomingBytePrev;       // Construct the start frame
+  }
+  else {
+    return;
+  }
+
+  // If DEBUG_RX is defined print all incoming bytes
+#ifdef CDEBUG_RX
+  Serial.print(cincomingByte);
+  return;
+#endif
+
+  // Copy received data
+  if (cbufStartFrame == START_FRAME) {                     // Initialize if new data is detected
+    cp       = (byte *)&cNewFeedback;
+    *cp++    = cincomingBytePrev;
+    *cp++    = cincomingByte;
+    cidx     = 2;
+  } else if (cidx >= 2 && cidx < sizeof(cSerialFeedback)) {  // Save the new received data
+    *cp++    = cincomingByte;
+    cidx++;
+  }
+
+  // Check if we reached the end of the package
+  if (cidx == sizeof(cSerialFeedback)) {
+    signed long cchecksum;
+    cchecksum = (signed long)(cNewFeedback.start ^ cNewFeedback.ccmd1 ^ cNewFeedback.ccmd2 ^ cNewFeedback.cspeedR_meas ^ cNewFeedback.cspeedL_meas
+                              ^ cNewFeedback.cbatVoltage ^ cNewFeedback.cboardTemp ^ cNewFeedback.ccmdLed);
+
+    // Check validity of the new data
+    if (cNewFeedback.start == START_FRAME && cchecksum == cNewFeedback.cchecksum) {
+      // Copy the new data
+      memcpy(&cFeedback, &cNewFeedback, sizeof(cSerialFeedback));
+
+      // Print data to built-in Serial
+      // Serial.print("1: ");   Serial.print(cFeedback.ccmd1);
+      // Serial.print(" 2: ");  Serial.print(cFeedback.ccmd2);
+      // Serial.print(" 3: ");  Serial.print(cFeedback.cspeedR_meas);
+      // Serial.print(" 4: ");  Serial.print(cFeedback.cspeedL_meas);
+      // Serial.print(" 5: ");  Serial.print(cFeedback.cbatVoltage);
+      // Serial.print(" 6: ");  Serial.print(cFeedback.cboardTemp);
+      // Serial.print(" 7: ");  Serial.println(cFeedback.ccmdLed);
+//      Serial.println();
+//      Serial.print(" heading: ");
+//      Serial.print(cFeedback.cspeedR_meas);
+//      receivecompass = cFeedback.cspeedR_meas;
+        pcompass= cFeedback.cspeedR_meas;
+
+//      
+    } else {
+      Serial.println("Non-valid data skipped");
+    }
+    cidx = 0;    // Reset the index (it prevents to enter in this if condition in the next cycle)
+  }
+
+  // Update previous states
+  cincomingBytePrev = cincomingByte;
+}
+
+
+// ########################## RECEIVE3 ##########################
+
+// ########################## LOOP ##########################
+unsigned long iTimeSend = 0;
+unsigned long iTimeSend1 = 0;
+unsigned long iTimeSend3 = 0;
+unsigned long iTimeSend2 = 0;
+void loop(void)
+{ 
+  unsigned long timeNow = millis();
+  unsigned long timeNow1 = millis();
+  unsigned long timeNow2 = millis();
+  unsigned long timeNow3 = millis();
+  Receive3();
+
+
+    // time send 100 ms delay
+  if(timeNow - iTimeSend > TIME_SEND){
+    
+  Serial.println();
+  Serial.print(pulseCountl);                                                       // Display the pulse count
+  Serial.print("\t");
+  Serial.print(pulseCountr);                                                       // Display the pulse count
+  Serial.println();// Serial.println();  
+  Serial.print("compass");
+  Serial.print(pcompass);
+ 
+
+ left = pulseCountl;
+ right = pulseCountr;
+                                                 // Display the pulse count
+ 
+   Send(1, 1, left, right, 1,1,100); //send 7 different  values from here..
+   iTimeSend = timeNow;//haha
+   
+  }
+  // time send 100 ms delay
+  
+
+}
+
+// ########################## ENCODER ###########################
+
+
+
+/* BLDC Hall Sensor read and calculation program for Teensy 3.5 in the Arduino IDE (Ver.1). Digi-Key Electronics*/
+
+/***************************** Setup *********************************/
+
+
+/*************************** Main Loop ******************************/
+
+
+/************************ Interrupt Functions ***************************/
+//LEFT
+void HallSensorWl()
+{
+  HSW_Vall = digitalRead(PB14);         // Read the current W hall sensor value
+  HSV_Vall = digitalRead(PB13);           // Read the current V (or U) hall sensor value 
+  directl = (HSW_Vall == HSV_Vall) ? CWL : CCWL;     // Determine rotation direction (ternary if statement)
+  pulseCountl = pulseCountl + (1 * directl);       // Add 1 to the pulse count
+}
+
+void HallSensorVl()
+{
+  HSV_Vall = digitalRead(PB13);
+  HSU_Vall = digitalRead(PB12);         // Read the current U (or W) hall sensor value 
+  directl = (HSV_Vall == HSU_Vall) ? CWL : CCWL;
+  pulseCountl = pulseCountl + (1 * directl);
+}
+
+void HallSensorUl()
+{
+//  startTime = millis();
+  HSU_Vall = digitalRead(PB12);
+  HSW_Vall = digitalRead(PB14);         // Read the current W (or V) hall sensor value    
+  directl = (HSU_Vall == HSW_Vall) ? CWL : CCWL;
+  pulseCountl = pulseCountl + (1 * directl);
+}
+
+//RIGHT
+void HallSensorWr()
+{
+  HSW_Valr = digitalRead(PA11);         // Read the current W hall sensor value
+  HSV_Valr = digitalRead(PA8);           // Read the current V (or U) hall sensor value 
+  directr = (HSW_Valr == HSV_Valr) ? CWR : CCWR;     // Determine rotation direction (ternary if statement)
+  pulseCountr = pulseCountr + (1 * directr);       // Add 1 to the pulse count
+}
+
+void HallSensorVr()
+{
+  HSV_Valr = digitalRead(PA8);
+  HSU_Valr = digitalRead(PB15);         // Read the current U (or W) hall sensor value 
+  directr = (HSV_Valr == HSU_Valr) ? CWR : CCWR;
+  pulseCountr = pulseCountr + (1 * directr);
+}
+
+void HallSensorUr()
+{
+//  startTime = millis();
+  HSU_Valr = digitalRead(PB15);
+  HSW_Valr = digitalRead(PA11);         // Read the current W (or V) hall sensor value    
+  directr = (HSU_Valr == HSW_Valr) ? CWR : CCWR;
+  pulseCountr = pulseCountr + (1 * directr);
+}
