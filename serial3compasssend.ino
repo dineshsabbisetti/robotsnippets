@@ -85,9 +85,9 @@ void loop(void)
          Serial.println(heading);
    }
     sendcompass = heading;       
-   Send3( 1, 0, 0, 0, 0, 0, sendcompass); //send 7 different  values from here..
+   Send3( 1, 0, sendcompass, 0, 0, 0, 100); //send 7 different  values from here..
    
-  delay(10);
+  delay(1);
   
 
 }
