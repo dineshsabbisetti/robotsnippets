@@ -1,0 +1,405 @@
+// ########################## DEFINES ##########################
+#define HOVER_SERIAL_BAUD   115200      // [-] Baud rate for HoverSerial (used to communicate with the hoverboard)
+#define SERIAL_BAUD         115200      // [-] Baud rate for built-in Serial (used for the Serial Monitor)
+#define START_FRAME         0xABCD       // [-] Start frme definition for reliable serial communication
+#define TIME_SEND            100         // [ms] Sending time interval
+#define TIME_SEND1           100         // [ms] Sending time interval
+#define TIME_SEND2           200         // [ms] Sending time interval
+#define TIME_SEND3           300         // [ms] Sending time interval
+// #define DEBUG_RX                        // [-] Debug received data. Prints all bytes to serial (comment-out to disable)
+// #define BEBUG_RX                        // [-] Debug received data. Prints all bytes to serial (comment-out to disable)
+// #define CDEBUG_RX                        // [-] Debug received data. Prints all bytes to serial (comment-out to disable)
+
+//#include <SoftwareSerial.h>
+//SoftwareSerial HoverSerial(2,3);        // RX, TX
+
+// super global
+signed long  pvolt;  
+signed long  ptemp;  
+signed long  pleft;
+signed long  pright;  
+signed long  pcompass;    
+signed long  qcompass;  
+
+
+
+// super global 
+
+
+
+
+// Global variables
+uint8_t idx = 0;                        // Index for new data pointer
+uint16_t bufStartFrame;                 // Buffer Start Frame
+byte *p;                                // Pointer declaration for the new received data
+byte incomingByte;
+byte incomingBytePrev;
+
+// Global variables 2
+uint8_t bidx = 0;                        // Index for new data pointer
+uint16_t bbufStartFrame;                 // Buffer Start Frame
+byte *bp;                                // Pointer declaration for the new received data
+byte bincomingByte;
+byte bincomingBytePrev;
+//new
+signed long  pulseCountl;       // Integer variable to store the pulse count
+signed long  pulseCountr;       // Integer variable to store the pulse count
+//new
+
+// Global variables 3
+//new
+unsigned long receivecompass = 0;
+//new
+uint8_t cidx = 0;                        // Index for new data pointer
+uint16_t cbufStartFrame;                 // Buffer Start Frame
+byte *cp;                                // Pointer declaration for the new received data
+byte cincomingByte;
+byte cincomingBytePrev;
+
+/// send
+typedef struct{
+   uint16_t start;
+   int16_t  steer;
+   int16_t  speed;
+   uint16_t checksum;
+} SerialCommand;
+SerialCommand Command;
+///////////////////////////
+
+//struct
+typedef struct{
+   uint16_t start;
+   int16_t  cmd1;
+   int16_t  cmd2;
+   int16_t  speedR_meas;
+   int16_t  speedL_meas;
+   int16_t  batVoltage;
+   int16_t  boardTemp;
+   uint16_t cmdLed;
+   uint16_t checksum;
+} SerialFeedback;
+SerialFeedback Feedback;
+SerialFeedback NewFeedback;
+//struct 2
+typedef struct {
+  signed long start;
+  signed long  bcmd1;
+  signed long  bcmd2;
+  signed long  bspeedR_meas;
+  signed long  bspeedL_meas;
+  signed long  bbatVoltage;
+  signed long  bboardTemp;
+  signed long bcmdLed;
+  signed long bchecksum;
+} bSerialFeedback;
+bSerialFeedback bFeedback;
+bSerialFeedback bNewFeedback;
+
+//struct 3
+typedef struct {
+  signed long start;
+  signed long  ccmd1;
+  signed long  ccmd2;
+  signed long  cspeedR_meas;
+  signed long  cspeedL_meas;
+  signed long  cbatVoltage;
+  signed long  cboardTemp;
+  signed long ccmdLed;
+  signed long cchecksum;
+} cSerialFeedback;
+cSerialFeedback cFeedback;
+cSerialFeedback cNewFeedback;
+
+// ########################## SETUP ##########################
+void setup()
+{
+  Serial.begin(SERIAL_BAUD);
+  Serial.println("Hoverboard Serial v1.0");
+
+  Serial1.begin(HOVER_SERIAL_BAUD);
+  Serial2.begin(HOVER_SERIAL_BAUD);
+  Serial3.begin(HOVER_SERIAL_BAUD);
+  pinMode(LED_BUILTIN, OUTPUT);
+}
+
+// ########################## SEND ##########################
+void Send(int16_t uSteer, int16_t uSpeed)
+{
+  // Create command
+  Command.start    = (uint16_t)START_FRAME;
+  Command.steer    = (int16_t)uSteer;
+  Command.speed    = (int16_t)uSpeed;
+  Command.checksum = (uint16_t)(Command.start ^ Command.steer ^ Command.speed);
+
+  // Write to Serial
+  Serial1.write((uint8_t *) &Command, sizeof(Command)); 
+}
+
+
+// ########################## RECEIVE ##########################
+void Receive()
+{
+    // Check for new data availability in the Serial buffer
+    if (Serial1.available()) {
+        incomingByte    = Serial1.read();                                   // Read the incoming byte
+        bufStartFrame = ((uint16_t)(incomingByte) << 8) | incomingBytePrev;       // Construct the start frame
+    }
+    else {
+        return;
+    }
+
+  // If DEBUG_RX is defined print all incoming bytes
+  #ifdef DEBUG_RX
+        Serial.print(incomingByte);
+        return;
+    #endif
+
+    // Copy received data
+    if (bufStartFrame == START_FRAME) {                     // Initialize if new data is detected
+        p       = (byte *)&NewFeedback;
+        *p++    = incomingBytePrev;
+        *p++    = incomingByte;
+        idx     = 2;  
+    } else if (idx >= 2 && idx < sizeof(SerialFeedback)) {  // Save the new received data
+        *p++    = incomingByte; 
+        idx++;
+    } 
+    
+    // Check if we reached the end of the package
+    if (idx == sizeof(SerialFeedback)) {
+        uint16_t checksum;
+        checksum = (uint16_t)(NewFeedback.start ^ NewFeedback.cmd1 ^ NewFeedback.cmd2 ^ NewFeedback.speedR_meas ^ NewFeedback.speedL_meas
+                            ^ NewFeedback.batVoltage ^ NewFeedback.boardTemp ^ NewFeedback.cmdLed);
+
+        // Check validity of the new data
+        if (NewFeedback.start == START_FRAME && checksum == NewFeedback.checksum) {
+            // Copy the new data
+            memcpy(&Feedback, &NewFeedback, sizeof(SerialFeedback));
+
+            // Print data to built-in Serial
+            //Serial.print("1: ");   Serial.print(Feedback.cmd1);
+            //Serial.print(" 2: ");  Serial.print(Feedback.cmd2);
+            //Serial.print(" 3: ");  Serial.print(Feedback.speedR_meas);
+            //Serial.print(" 4: ");  Serial.print(Feedback.speedL_meas);
+             Serial.println();
+           // Serial.print(" 5: ");  Serial.print(Feedback.batVoltage);
+           // Serial.print(" 6: ");  Serial.print(Feedback.boardTemp);
+           
+            //Serial.print(" 7: ");  Serial.println(Feedback.cmdLed);
+
+            pvolt =   Feedback.batVoltage;
+            ptemp = Feedback.boardTemp;
+            
+        } else {
+          Serial.println("Non-valid data skipped");
+        }
+        idx = 0;    // Reset the index (it prevents to enter in this if condition in the next cycle)
+    }
+
+    // Update previous states
+    incomingBytePrev = incomingByte;
+}
+
+// ########################## RECEIVE2 ##########################
+void Receive2()
+{
+  // Check for new data availability in the Serial buffer
+  if (Serial2.available()) {
+    bincomingByte    = Serial2.read();                                   // Read the incoming byte
+    bbufStartFrame = ((uint16_t)(bincomingByte) << 8) | bincomingBytePrev;       // Construct the start frame
+  }
+  else {
+    return;
+  }
+
+  // If DEBUG_RX is defined print all incoming bytes
+#ifdef BDEBUG_RX
+  Serial.print(bincomingByte);
+  return;
+#endif
+
+  // Copy received data
+  if (bbufStartFrame == START_FRAME) {                     // Initialize if new data is detected
+    bp       = (byte *)&bNewFeedback;
+    *bp++    = bincomingBytePrev;
+    *bp++    = bincomingByte;
+    bidx     = 2;
+  } else if (bidx >= 2 && bidx < sizeof(bSerialFeedback)) {  // Save the new received data
+    *bp++    = bincomingByte;
+    bidx++;
+  }
+
+  // Check if we reached the end of the package
+  if (bidx == sizeof(bSerialFeedback)) {
+    signed long bchecksum;
+    bchecksum = (signed long)(bNewFeedback.start ^ bNewFeedback.bcmd1 ^ bNewFeedback.bcmd2 ^ bNewFeedback.bspeedR_meas ^ bNewFeedback.bspeedL_meas
+                              ^ bNewFeedback.bbatVoltage ^ bNewFeedback.bboardTemp ^ bNewFeedback.bcmdLed);
+
+    // Check validity of the new data
+    if (bNewFeedback.start == START_FRAME && bchecksum == bNewFeedback.bchecksum) {
+      // Copy the new data
+      memcpy(&bFeedback, &bNewFeedback, sizeof(bSerialFeedback));
+
+      // Print data to built-in Serial
+      //            Serial.print("1: ");   Serial.print(bFeedback.bcmd1);
+      //            Serial.print(" 2: ");  Serial.print(bFeedback.bcmd2);
+      //            Serial.print(" 3: ");  Serial.print(bFeedback.bspeedR_meas);
+      //            Serial.print(" 4: ");  Serial.print(bFeedback.bspeedL_meas);
+      //            Serial.print(" 5: ");  Serial.print(bFeedback.bbatVoltage);
+      //            Serial.print(" 6: ");  Serial.print(bFeedback.bboardTemp);
+      //            Serial.print(" 7: ");  Serial.println(bFeedback.bcmdLed);
+
+      pulseCountr = bFeedback.bspeedR_meas;     // Integer variable to store the pulse count
+      pulseCountl = bFeedback.bspeedL_meas;     // Integer variable to store the pulse count
+//      Serial.println();
+//      Serial.print(pulseCountr);                                                       // Display the pulse count
+//      Serial.print("\t");
+//      Serial.print(pulseCountl);
+      pleft = bFeedback.bspeedR_meas;     // Integer variable to store the pulse count
+      pright = bFeedback.bspeedL_meas;     // Integer variable to store the pulse count
+      qcompass = bFeedback.bbatVoltage;
+
+
+
+    } else {
+      Serial.println("Non-valid data skipped");
+    }
+    bidx = 0;    // Reset the index (it prevents to enter in this if condition in the next cycle)
+  }
+
+  // Update previous states
+  bincomingBytePrev = bincomingByte;
+}
+
+// ########################## RECEIVE3 ##########################
+void Receive3()
+{
+  // Check for new data availability in the Serial buffer
+  if (Serial3.available()) {
+    cincomingByte    = Serial3.read();                                   // Read the incoming byte
+    cbufStartFrame = ((uint16_t)(cincomingByte) << 8) | cincomingBytePrev;       // Construct the start frame
+  }
+  else {
+    return;
+  }
+
+  // If DEBUG_RX is defined print all incoming bytes
+#ifdef CDEBUG_RX
+  Serial.print(cincomingByte);
+  return;
+#endif
+
+  // Copy received data
+  if (cbufStartFrame == START_FRAME) {                     // Initialize if new data is detected
+    cp       = (byte *)&cNewFeedback;
+    *cp++    = cincomingBytePrev;
+    *cp++    = cincomingByte;
+    cidx     = 2;
+  } else if (cidx >= 2 && cidx < sizeof(cSerialFeedback)) {  // Save the new received data
+    *cp++    = cincomingByte;
+    cidx++;
+  }
+
+  // Check if we reached the end of the package
+  if (cidx == sizeof(cSerialFeedback)) {
+    signed long cchecksum;
+    cchecksum = (signed long)(cNewFeedback.start ^ cNewFeedback.ccmd1 ^ cNewFeedback.ccmd2 ^ cNewFeedback.cspeedR_meas ^ cNewFeedback.cspeedL_meas
+                              ^ cNewFeedback.cbatVoltage ^ cNewFeedback.cboardTemp ^ cNewFeedback.ccmdLed);
+
+    // Check validity of the new data
+    if (cNewFeedback.start == START_FRAME && cchecksum == cNewFeedback.cchecksum) {
+      // Copy the new data
+      memcpy(&cFeedback, &cNewFeedback, sizeof(cSerialFeedback));
+
+      // Print data to built-in Serial
+      // Serial.print("1: ");   Serial.print(cFeedback.ccmd1);
+      // Serial.print(" 2: ");  Serial.print(cFeedback.ccmd2);
+      // Serial.print(" 3: ");  Serial.print(cFeedback.cspeedR_meas);
+      // Serial.print(" 4: ");  Serial.print(cFeedback.cspeedL_meas);
+      // Serial.print(" 5: ");  Serial.print(cFeedback.cbatVoltage);
+      // Serial.print(" 6: ");  Serial.print(cFeedback.cboardTemp);
+      // Serial.print(" 7: ");  Serial.println(cFeedback.ccmdLed);
+//      Serial.println();
+//      Serial.print(" heading: ");
+//      Serial.print(cFeedback.cspeedR_meas);
+//      receivecompass = cFeedback.cspeedR_meas;
+        pcompass= cFeedback.cspeedR_meas;
+
+//      
+    } else {
+      Serial.println("Non-valid data skipped");
+    }
+    cidx = 0;    // Reset the index (it prevents to enter in this if condition in the next cycle)
+  }
+
+  // Update previous states
+  cincomingBytePrev = cincomingByte;
+}
+
+int constrainedInput;
+int turn;
+int throttle;
+
+// ########################## LOOP ##########################
+unsigned long iTimeSend = 0;
+unsigned long iTimeSend1 = 0;
+unsigned long iTimeSend3 = 0;
+unsigned long iTimeSend2 = 0;
+
+void loop(void)
+{ unsigned long timeNow = millis();
+  unsigned long timeNow1 = millis();
+  unsigned long timeNow2 = millis();
+  unsigned long timeNow3 = millis();
+ 
+  // Check for new received data
+  Receive();
+  Receive2();
+  Receive3();
+  // time send 100 ms delay
+  if(timeNow - iTimeSend > TIME_SEND){
+    //
+    
+   Send(0,0);
+   Serial.println(".");
+   iTimeSend = timeNow;
+  }
+  // time send 100 ms delay
+  
+  // time send 300 ms delay
+  
+  if(timeNow3 - iTimeSend3 > TIME_SEND3){
+
+
+   Serial.println();
+   Serial.print("voltage");
+   Serial.print(pvolt);
+   Serial.println();
+   Serial.print("temp");
+   Serial.print(ptemp);
+   Serial.println();
+   Serial.print("left");
+   Serial.print(pleft);
+   Serial.println();  
+   Serial.print("right");
+   Serial.print(pright);
+   Serial.println();
+   Serial.print("compass");
+   Serial.print(pcompass);
+   Serial.println();
+   Serial.print("compass");
+   Serial.print(qcompass);
+   Serial.println();
+
+   constrainedInput = constrain(pcompass, 0, 100);
+   Serial.println("constrainedInput");
+   Serial.println(constrainedInput);
+   iTimeSend3 = timeNow3;
+  
+  }
+  // time send 300 ms delay
+
+
+}
+
+// ########################## END ##########################
