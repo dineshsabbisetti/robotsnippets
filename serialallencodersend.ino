@@ -33,6 +33,10 @@ int pulseCountl;       // Integer variable to store the pulse count
 int directr = 1;       // Integer variable to store BLDC rotation direction
 int pulseCountr;       // Integer variable to store the pulse count
 
+
+signed long right = 0;
+signed long left = 0;
+
 /***************************** Variables *********************************/
 
 
@@ -101,6 +105,7 @@ void Send(signed long  ucmd1, signed long  ucmd2, signed long uspeedR_meas, sign
                                            ^ Feedback.batVoltage ^ Feedback.boardTemp ^ Feedback.cmdLed);
   
      Serial2.write((uint8_t *)&Feedback, sizeof(Feedback));
+
 }
 
 // ########################## LOOP ##########################
@@ -113,7 +118,12 @@ void loop(void)
   Serial.print("\t");
   Serial.print(pulseCountr);                                                       // Display the pulse count
  // Serial.println();
-   Send(1, 1, pulseCountl, pulseCountr, 1,1,1); //send 7 different  values from here..
+
+ left = pulseCountl;
+ right = pulseCountr;
+                                                 // Display the pulse count
+ 
+   Send(1, 1, left, right, 1,1,100); //send 7 different  values from here..
 
 }
 
